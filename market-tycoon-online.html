@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ตลาดนัดเศรษฐี — Night Market Tycoon Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --night:#1a2036;
+    --night-deep:#12172a;
+    --paper:#f4ecd8;
+    --paper-dim:#e6dcc2;
+    --lantern:#e2543b;
+    --lantern-glow:#f4a340;
+    --stall:#4c8c6b;
+    --ink:#2b2620;
+    --gold:#d4af37;
+    --line:rgba(244,236,216,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(244,163,64,0.10), transparent 45%),
+      radial-gradient(ellipse at 85% 15%, rgba(226,84,59,0.10), transparent 40%),
+      var(--night);
+    color:var(--paper);
+    font-family:'Kanit',sans-serif;
+    padding:18px 14px 60px;
+    position:relative;
+    overflow-x:hidden;
+  }
+
+  /* ambient twinkle lights */
+  .sky-light{
+    position:fixed;border-radius:50%;pointer-events:none;
+    background:var(--lantern-glow);opacity:0.5;filter:blur(1px);
+    animation:twinkle 3.4s ease-in-out infinite;
+  }
+  @keyframes twinkle{0%,100%{opacity:0.15;transform:scale(0.8);}50%{opacity:0.75;transform:scale(1.15);}}
+
+  h1{text-align:center;font-weight:600;font-size:clamp(22px,4vw,32px);margin:4px 0 2px;letter-spacing:0.5px;}
+  .subtitle{text-align:center;color:var(--lantern-glow);font-size:14px;margin-bottom:22px;font-weight:300;}
+
+  .screen{max-width:480px;margin:30px auto;background:var(--night-deep);border:1px solid var(--line);
+    border-radius:14px;padding:26px 24px;animation:fadeIn .35s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .screen h2{margin-top:0;font-weight:500;font-size:18px;color:var(--lantern-glow);}
+  .screen p.hint{font-size:12.5px;color:#a89f8a;line-height:1.6;}
+
+  label{display:block;font-size:12px;color:#a89f8a;margin:14px 0 5px;}
+  input[type=text]{
+    width:100%;background:var(--night);border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;color:var(--paper);font-family:'Kanit',sans-serif;font-size:14px;
+  }
+  .color-pick{display:flex;gap:8px;margin-top:8px;}
+  .color-pick div{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s;}
+  .color-pick div.sel{border-color:#fff;transform:scale(1.15);}
+  .btn{
+    width:100%;padding:12px;border:none;border-radius:9px;font-family:'Kanit';font-size:15px;
+    font-weight:600;cursor:pointer;margin-top:14px;transition:transform .1s, background .15s;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--lantern-glow);color:var(--night-deep);}
+  .btn-primary:hover{background:#ffb75c;}
+  .btn-outline{background:transparent;border:1px solid var(--line);color:var(--paper);}
+  .row2{display:flex;gap:10px;}
+  .row2>div{flex:1;}
+  .divider{text-align:center;color:#6b6252;font-size:11px;margin:18px 0;position:relative;}
+  .divider::before,.divider::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:var(--line);}
+  .divider::before{left:0;}.divider::after{right:0;}
+  .code-display{
+    font-family:'JetBrains Mono',monospace;font-size:26px;letter-spacing:6px;text-align:center;
+    color:var(--lantern-glow);background:var(--night);border-radius:8px;padding:10px;margin-top:6px;cursor:pointer;
+  }
+  .lobby-list{margin:14px 0;}
+  .lobby-chip{display:flex;align-items:center;gap:8px;background:var(--night);border-radius:8px;
+    padding:8px 12px;margin-bottom:6px;font-size:14px;}
+  .lobby-chip .dot{width:14px;height:14px;border-radius:50%;}
+
+  #game{display:none;}
+  .wrap{max-width:900px;margin:0 auto;}
+  .board-area{
+    display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:4px;
+    width:min(94vw,700px);aspect-ratio:1;margin:0 auto;background:var(--night-deep);
+    padding:4px;border-radius:12px;border:1px solid var(--line);
+  }
+  .cell{
+    position:relative;background:var(--paper);color:var(--ink);border-radius:6px;
+    display:flex;flex-direction:column;justify-content:flex-end;padding:4px;
+    font-size:9px;line-height:1.15;overflow:hidden;
+  }
+  .cell .band{height:9px;border-radius:2px;margin:-4px -4px 3px -4px;}
+  .cell .name{font-weight:500;font-size:8.5px;}
+  .cell .price{font-family:'JetBrains Mono',monospace;font-size:8px;color:#6b6252;}
+  .cell.corner{justify-content:center;align-items:center;text-align:center;font-weight:600;font-size:10px;background:var(--paper-dim);}
+  .cell.owned::after{content:'';position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;
+    background:var(--owner-color,#999);border:1px solid rgba(0,0,0,0.3);}
+  .cell.flash{animation:cellFlash .6s ease;}
+  @keyframes cellFlash{0%{box-shadow:0 0 0 0 rgba(244,163,64,0.9);}100%{box-shadow:0 0 0 10px rgba(244,163,64,0);}}
+
+  .center-panel{grid-row:2/6;grid-column:2/6;background:var(--night);border-radius:8px;
+    display:flex;flex-direction:column;padding:14px;gap:8px;border:1px solid var(--line);position:relative;}
+  .center-panel h2{margin:0;font-size:14px;font-weight:600;color:var(--lantern-glow);text-align:center;
+    transition:opacity .2s;}
+  .room-tag{position:absolute;top:8px;right:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#6b6252;}
+
+  .players-row{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;}
+  .player-chip{position:relative;display:flex;align-items:center;gap:5px;background:var(--night-deep);
+    border-radius:20px;padding:4px 10px 4px 6px;font-size:11px;border:1px solid var(--line);
+    transition:box-shadow .2s, border-color .2s;}
+  .player-chip.turn{border-color:var(--lantern-glow);box-shadow:0 0 0 1px var(--lantern-glow),0 0 10px rgba(244,163,64,0.5);
+    animation:pulseTurn 1.6s ease-in-out infinite;}
+  @keyframes pulseTurn{0%,100%{box-shadow:0 0 0 1px var(--lantern-glow),0 0 6px rgba(244,163,64,0.35);}
+    50%{box-shadow:0 0 0 1px var(--lantern-glow),0 0 14px rgba(244,163,64,0.7);}}
+  .player-chip.bankrupt{opacity:0.35;}
+  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .cash{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;}
+  .float-delta{
+    position:absolute;top:-4px;left:50%;font-family:'JetBrains Mono',monospace;font-weight:700;
+    font-size:12px;pointer-events:none;animation:floatUp 1.1s ease forwards;white-space:nowrap;
+  }
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,4px);}
+    20%{opacity:1;}100%{opacity:0;transform:translate(-50%,-26px);}}
+
+  .dice-row{display:flex;justify-content:center;align-items:center;gap:10px;margin:2px 0;}
+  .die{width:38px;height:38px;background:var(--paper);color:var(--ink);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;
+    font-weight:700;font-size:18px;transition:transform .08s;}
+  .die.rolling{animation:diceSpin .12s linear infinite;}
+  @keyframes diceSpin{0%{transform:rotate(0deg) scale(1);}50%{transform:rotate(180deg) scale(1.1);}100%{transform:rotate(360deg) scale(1);}}
+
+  #rollBtn{background:var(--lantern);color:#fff;border:none;border-radius:9px;padding:10px 0;
+    font-family:'Kanit';font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;}
+  #rollBtn:disabled{opacity:0.35;cursor:default;}
+  #rollBtn:not(:disabled):hover{background:#f0603f;}
+  #rollBtn:not(:disabled):active{transform:scale(0.97);}
+
+  .action-panel{background:var(--night-deep);border:1px solid var(--lantern-glow);border-radius:8px;
+    padding:10px;font-size:12px;text-align:center;animation:popIn .25s ease;}
+  @keyframes popIn{from{opacity:0;transform:scale(0.9);}to{opacity:1;transform:scale(1);}}
+  .action-panel .btns{display:flex;gap:8px;margin-top:8px;}
+  .action-panel button{flex:1;padding:8px 0;border:none;border-radius:7px;font-family:'Kanit';font-size:13px;cursor:pointer;}
+  .btn-yes{background:var(--stall);color:#fff;}
+  .btn-no{background:#5a5646;color:var(--paper);}
+
+  .event-card{
+    width:120px;height:78px;margin:0 auto;background:var(--paper);color:var(--ink);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-size:26px;
+    transform-style:preserve-3d;transition:transform .5s;
+  }
+  .event-card.flip{transform:rotateY(180deg);}
+
+  .log{flex:1;overflow-y:auto;background:var(--night-deep);border-radius:7px;padding:8px 10px;
+    font-size:11px;line-height:1.5;max-height:110px;}
+  .log div{border-bottom:1px dashed var(--line);padding:3px 0;animation:logIn .25s ease;}
+  .log div:last-child{border-bottom:none;}
+  @keyframes logIn{from{opacity:0;transform:translateX(-4px);}to{opacity:1;transform:translateX(0);}}
+
+  #endGameBtn{background:none;border:1px solid var(--line);color:var(--paper);border-radius:7px;
+    padding:6px 0;font-family:'Kanit';font-size:11px;cursor:pointer;opacity:0.7;}
+
+  .token-holder{position:absolute;top:2px;left:2px;display:flex;gap:1px;flex-wrap:wrap;width:calc(100% - 4px);}
+  .token{width:8px;height:8px;border-radius:50%;border:1px solid rgba(0,0,0,0.4);
+    transition:transform .18s ease;}
+  .token.hop{animation:hop .32s ease;}
+  @keyframes hop{0%{transform:translateY(0) scale(1);}40%{transform:translateY(-6px) scale(1.3);}100%{transform:translateY(0) scale(1);}}
+
+  #overlay{display:none;position:fixed;inset:0;background:rgba(18,23,42,0.9);
+    align-items:center;justify-content:center;z-index:50;padding:20px;}
+  #overlay .box{background:var(--paper);color:var(--ink);border-radius:14px;padding:26px 28px;
+    max-width:380px;text-align:center;animation:popIn .3s ease;}
+  #overlay h2{margin-top:0;color:var(--lantern);}
+  #overlay button{margin-top:14px;background:var(--lantern);color:#fff;border:none;border-radius:8px;
+    padding:10px 22px;font-family:'Kanit';font-size:14px;cursor:pointer;}
+  .rank-row{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;font-family:'JetBrains Mono',monospace;}
+
+  .confetti{position:fixed;top:-10px;width:8px;height:14px;pointer-events:none;z-index:60;
+    animation:confettiFall linear forwards;}
+  @keyframes confettiFall{to{transform:translateY(110vh) rotate(540deg);opacity:0.2;}}
+
+  .setup-warning{background:#4a2222;border:1px solid var(--lantern);border-radius:10px;padding:16px;
+    font-size:13px;line-height:1.7;margin-bottom:18px;}
+  .setup-warning code{background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:4px;font-size:12px;}
+</style>
+</head>
+<body>
+
+<h1>🏮 ตลาดนัดเศรษฐี</h1>
+<div class="subtitle">สร้างอาณาจักรธุรกิจแผงลอย เล่นออนไลน์กับเพื่อนได้เลย!</div>
+
+<div id="configWarning" class="screen" style="display:none;">
+  <h2>⚠️ ยังไม่ได้ตั้งค่า Firebase</h2>
+  <div class="setup-warning">
+    เกมนี้ต้องใช้ Firebase (Firestore) เพื่อซิงค์ข้อมูลระหว่างผู้เล่นแบบเรียลไทม์<br><br>
+    1. เปิด Firebase Console → สร้างโปรเจกต์ (หรือใช้โปรเจกต์เดิมที่มีอยู่แล้ว)<br>
+    2. เปิดใช้งาน <b>Firestore Database</b> (โหมดทดสอบ/test mode พอสำหรับเล่นกับเพื่อน)<br>
+    3. คัดลอกค่า <code>firebaseConfig</code> จากหน้า Project settings<br>
+    4. แก้ตัวแปร <code>firebaseConfig</code> ที่ต้นไฟล์ HTML นี้ด้วยค่าของคุณ แล้วบันทึกใหม่
+  </div>
+  <p class="hint">โค้ดส่วนเกมทั้งหมดพร้อมใช้งานแล้ว รอแค่เชื่อม Firebase ของคุณเท่านั้น</p>
+</div>
+
+<div id="home" class="screen" style="display:none;">
+  <h2>เริ่มเล่น</h2>
+  <label>ชื่อผู้เล่น</label>
+  <input type="text" id="nameInput" maxlength="14" placeholder="เช่น แม่ค้าส้มตำ">
+  <label>เลือกสี</label>
+  <div class="color-pick" id="colorPick"></div>
+
+  <button class="btn btn-primary" id="createBtn">🎲 สร้างห้องใหม่</button>
+  <div class="divider">หรือ</div>
+  <label>รหัสห้อง</label>
+  <div class="row2">
+    <div><input type="text" id="joinCodeInput" maxlength="4" placeholder="ใส่รหัส 4 หลัก" style="text-transform:uppercase"></div>
+  </div>
+  <button class="btn btn-outline" id="joinBtn" style="margin-top:10px;">🔑 เข้าร่วมห้อง</button>
+</div>
+
+<div id="lobby" class="screen" style="display:none;">
+  <h2>ห้องรอผู้เล่น</h2>
+  <p class="hint">แชร์รหัสนี้ให้เพื่อน เพื่อกดเข้าร่วมห้อง</p>
+  <div class="code-display" id="roomCodeDisplay" title="กดเพื่อคัดลอก"></div>
+  <div class="lobby-list" id="lobbyList"></div>
+  <button class="btn btn-primary" id="startGameBtn" style="display:none;">เริ่มเกม 🎲</button>
+  <p class="hint" id="waitingHint">รอเจ้าของห้องกดเริ่มเกม...</p>
+  <button class="btn btn-outline" id="leaveLobbyBtn">ออกจากห้อง</button>
+</div>
+
+<div id="game">
+  <div class="wrap">
+    <div class="board-area" id="board"></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="box">
+    <h2 id="overTitle"></h2>
+    <div id="overBody"></div>
+    <button id="overCloseBtn">ปิด</button>
+  </div>
+</div>
+
+<script>
+/* ============ 1) FIREBASE CONFIG — แก้ตรงนี้ด้วยค่าของคุณเอง ============ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBXi-FExOn5XbQKPUHdVRu_FBr0-8ZPGVE",
+  authDomain: "market-tycoon-bb708.firebaseapp.com",
+  projectId: "market-tycoon-bb708",
+  storageBucket: "market-tycoon-bb708.firebasestorage.app",
+  messagingSenderId: "225470078303",
+  appId: "1:225470078303:web:e4ca1bbf97d7357e6a2aea"
+};
+/* ======================================================================= */
+
+const CONFIG_IS_PLACEHOLDER = firebaseConfig.apiKey.includes("ใส่");
+let db = null;
+if(!CONFIG_IS_PLACEHOLDER){
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+}
+
+const ROOMS = 'marketTycoonRooms';
+const PALETTE = ['#e2543b','#4c8c6b','#d4af37','#6d9dc5'];
+
+const POS = [
+  [6,6],[5,6],[4,6],[3,6],[2,6],
+  [1,6],[1,5],[1,4],[1,3],[1,2],
+  [1,1],[2,1],[3,1],[4,1],[5,1],
+  [6,1],[6,2],[6,3],[6,4],[6,5]
+];
+const GROUP_COLORS = {a:'#e07a5f',b:'#f2cc8f',c:'#81b29a',d:'#6d9dc5',e:'#9b8bb4',f:'#d88fb0',g:'#e8a33d',h:'#c9484a'};
+function stall(name, price, group){ return {type:'stall', name, price, group}; }
+const BOARD = [
+  {type:'corner', kind:'start', name:'จุดเริ่มต้น\n+200฿'},
+  stall('ส้มตำ', 60, 'a'), stall('หมูปิ้ง', 60, 'a'),
+  stall('ก๋วยเตี๋ยว', 100, 'b'), stall('ข้าวมันไก่', 100, 'b'),
+  {type:'corner', kind:'event', name:'เหตุการณ์สุ่ม'},
+  stall('ชานมไข่มุก', 140, 'c'), stall('น้ำผลไม้ปั่น', 140, 'c'),
+  stall('เสื้อผ้าแฟชั่น', 180, 'd'), stall('รองเท้า', 180, 'd'),
+  {type:'corner', kind:'rest', name:'พักม้านั่ง\nปลอดภัย'},
+  stall('ของเล่น', 220, 'e'), stall('ของที่ระลึก', 220, 'e'),
+  stall('ร้านหนังสือ', 260, 'f'), stall('เครื่องสำอาง', 260, 'f'),
+  {type:'corner', kind:'tax', name:'ตรวจตลาด\n-100฿'},
+  stall('ร้านมือถือ', 300, 'g'), stall('ร้านคอมพิวเตอร์', 300, 'g'),
+  stall('ร้านทอง', 360, 'h'), stall('ร้านเพชร', 360, 'h'),
+];
+const EVENTS = [
+  {text:'ลูกค้าติดใจสูตรลับ! รับพิเศษ 150 บาท', amount:150, emoji:'😋'},
+  {text:'น้ำท่วมตลาด ซ่อมแซมแผงเสียเงิน 100 บาท', amount:-100, emoji:'🌧️'},
+  {text:'นักท่องเที่ยวแห่มาเที่ยวตลาด! รับ 200 บาท', amount:200, emoji:'🧳'},
+  {text:'โดนปรับเรื่องขยะ เสียเงิน 150 บาท', amount:-150, emoji:'🚮'},
+  {text:'ได้รางวัลร้านสะอาดดีเด่น รับ 100 บาท', amount:100, emoji:'🏅'},
+  {text:'ไฟฟ้าดับ ของเสียหาย เสียเงิน 80 บาท', amount:-80, emoji:'💡'},
+  {text:'ลูกค้าประจำแนะนำเพื่อนมาอุดหนุน รับ 120 บาท', amount:120, emoji:'🗣️'},
+  {text:'เจ้าของตลาดขึ้นค่าเช่าแผง เสียเงิน 200 บาท', amount:-200, emoji:'📈'},
+  {text:'ค่าธรรมเนียมทำความสะอาดตลาด เสียเงิน 50 บาท', amount:-50, emoji:'🧹'},
+  {text:'โชคดี! เดินหน้าต่อ 4 ช่อง', amount:0, move:4, emoji:'🍀'},
+];
+
+/* ---------- identity / persistence ---------- */
+function uid(){ return 'p_' + Math.random().toString(36).slice(2,10); }
+let myId = localStorage.getItem('mtPlayerId');
+if(!myId){ myId = uid(); localStorage.setItem('mtPlayerId', myId); }
+
+let roomCode = null, unsub = null, state = null, lastSeenTurnSeq = -1;
+
+/* ---------- boot ---------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  spawnSkyLights();
+  if(CONFIG_IS_PLACEHOLDER){
+    document.getElementById('configWarning').style.display = 'block';
+    return;
+  }
+  document.getElementById('nameInput').value = localStorage.getItem('mtName') || '';
+  buildColorPicker();
+  document.getElementById('home').style.display = 'block';
+
+  document.getElementById('createBtn').addEventListener('click', createRoom);
+  document.getElementById('joinBtn').addEventListener('click', joinRoom);
+  document.getElementById('leaveLobbyBtn').addEventListener('click', leaveRoom);
+  document.getElementById('roomCodeDisplay').addEventListener('click', copyRoomCode);
+  document.getElementById('overCloseBtn').addEventListener('click', ()=>document.getElementById('overlay').style.display='none');
+
+  const params = new URLSearchParams(location.search);
+  if(params.get('room')) document.getElementById('joinCodeInput').value = params.get('room').toUpperCase();
+});
+
+function spawnSkyLights(){
+  for(let i=0;i<14;i++){
+    const d = document.createElement('div');
+    d.className='sky-light';
+    const size = 2+Math.random()*3;
+    d.style.width=size+'px'; d.style.height=size+'px';
+    d.style.left = Math.random()*100+'vw';
+    d.style.top = Math.random()*40+'vh';
+    d.style.animationDelay = (Math.random()*3)+'s';
+    document.body.appendChild(d);
+  }
+}
+
+let selectedColor = PALETTE[0];
+function buildColorPicker(){
+  const box = document.getElementById('colorPick');
+  box.innerHTML='';
+  PALETTE.forEach((c,i)=>{
+    const el = document.createElement('div');
+    el.style.background=c;
+    if(i===0) el.classList.add('sel');
+    el.addEventListener('click', ()=>{
+      selectedColor=c;
+      box.querySelectorAll('div').forEach(x=>x.classList.remove('sel'));
+      el.classList.add('sel');
+    });
+    box.appendChild(el);
+  });
+}
+
+function myName(){
+  const n = document.getElementById('nameInput').value.trim();
+  return n || 'นักธุรกิจ';
+}
+
+/* ---------- room create / join ---------- */
+async function createRoom(){
+  localStorage.setItem('mtName', myName());
+  const code = Math.random().toString(36).slice(2,6).toUpperCase();
+  const initState = {
+    status:'lobby',
+    players:[{id:myId, name:myName(), color:selectedColor, cash:1500, pos:0, bankrupt:false}],
+    ownership: Array(BOARD.length).fill(null),
+    currentTurn:0,
+    turnSeq:0,
+    lastTurnResult:null,
+    winnerId:null,
+    log:['สร้างห้องเรียบร้อย รอเพื่อนเข้าร่วม!']
+  };
+  await db.collection(ROOMS).doc(code).set(initState);
+  enterRoom(code);
+}
+
+async function joinRoom(){
+  localStorage.setItem('mtName', myName());
+  const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+  if(!code) return alert('กรอกรหัสห้องก่อนนะครับ');
+  const ref = db.collection(ROOMS).doc(code);
+  try{
+    await db.runTransaction(async (tx)=>{
+      const doc = await tx.get(ref);
+      if(!doc.exists) throw new Error('ไม่พบห้องนี้');
+      const s = doc.data();
+      if(s.status!=='lobby') throw new Error('ห้องนี้เริ่มเกมไปแล้ว');
+      if(s.players.some(p=>p.id===myId)) return; // already in
+      if(s.players.length>=4) throw new Error('ห้องเต็มแล้ว');
+      const usedColors = s.players.map(p=>p.color);
+      const color = PALETTE.find(c=>!usedColors.includes(c)) || PALETTE[s.players.length%4];
+      const players = s.players.concat([{id:myId, name:myName(), color, cash:1500, pos:0, bankrupt:false}]);
+      tx.update(ref, {players, log: s.log.concat([`${myName()} เข้าร่วมห้อง`])});
+    });
+  }catch(err){
+    alert(err.message || 'เข้าห้องไม่สำเร็จ');
+    return;
+  }
+  enterRoom(code);
+}
+
+function enterRoom(code){
+  roomCode = code;
+  document.getElementById('home').style.display='none';
+  document.getElementById('lobby').style.display='block';
+  document.getElementById('roomCodeDisplay').textContent = code;
+  listenRoom();
+}
+
+function copyRoomCode(){
+  navigator.clipboard?.writeText(roomCode);
+  const el = document.getElementById('roomCodeDisplay');
+  const old = el.textContent;
+  el.textContent = 'คัดลอกแล้ว!';
+  setTimeout(()=>el.textContent=old, 900);
+}
+
+function leaveRoom(){
+  if(unsub) unsub();
+  roomCode=null; state=null; lastSeenTurnSeq=-1;
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('game').style.display='none';
+  document.getElementById('home').style.display='block';
+}
+
+function listenRoom(){
+  unsub = db.collection(ROOMS).doc(roomCode).onSnapshot(doc=>{
+    if(!doc.exists) return;
+    onStateUpdate(doc.data());
+  });
+}
+
+/* ---------- state routing ---------- */
+function onStateUpdate(newState){
+  const prevStatus = state ? state.status : null;
+  const first = state === null;
+  const oldState = state;
+  state = newState;
+
+  if(state.status==='lobby'){
+    renderLobby();
+    return;
+  }
+  if(prevStatus!=='playing' && state.status==='playing'){
+    document.getElementById('lobby').style.display='none';
+    document.getElementById('game').style.display='block';
+    buildBoard();
+  }
+  if(first || lastSeenTurnSeq===-1){
+    lastSeenTurnSeq = state.turnSeq;
+    renderStatic();
+    return;
+  }
+  if(state.turnSeq !== lastSeenTurnSeq){
+    lastSeenTurnSeq = state.turnSeq;
+    playTurnAnimation(oldState, state);
+  } else {
+    renderStatic();
+  }
+}
+
+function renderLobby(){
+  const list = document.getElementById('lobbyList');
+  list.innerHTML='';
+  state.players.forEach(p=>{
+    const row=document.createElement('div');
+    row.className='lobby-chip';
+    row.innerHTML = `<div class="dot" style="background:${p.color}"></div><span>${p.name}${p.id===myId?' (คุณ)':''}</span>`;
+    list.appendChild(row);
+  });
+  const isHost = state.players[0] && state.players[0].id===myId;
+  const startBtn = document.getElementById('startGameBtn');
+  const hint = document.getElementById('waitingHint');
+  if(isHost && state.players.length>=2){
+    startBtn.style.display='block';
+    hint.style.display='none';
+    startBtn.onclick = ()=> db.collection(ROOMS).doc(roomCode).update({status:'playing', log: state.log.concat(['เกมเริ่มแล้ว! 🎉'])});
+  } else {
+    startBtn.style.display='none';
+    hint.style.display='block';
+    hint.textContent = isHost ? 'ต้องมีผู้เล่นอย่างน้อย 2 คนถึงจะเริ่มได้' : 'รอเจ้าของห้องกดเริ่มเกม...';
+  }
+}
+
+/* ---------- board build / render ---------- */
+function buildBoard(){
+  const board = document.getElementById('board');
+  board.innerHTML='';
+  BOARD.forEach((c,idx)=>{
+    const [r,col]=POS[idx];
+    const div=document.createElement('div');
+    div.className='cell'+(c.type==='corner'?' corner':'');
+    div.style.gridRow=r; div.style.gridColumn=col;
+    div.id='cell-'+idx;
+    if(c.type==='stall'){
+      div.innerHTML=`<div class="band" style="background:${GROUP_COLORS[c.group]}"></div>
+        <div class="name">${c.name}</div><div class="price">${c.price}฿</div>
+        <div class="token-holder"></div>`;
+    } else {
+      div.innerHTML=`<div style="white-space:pre-line">${c.name}</div><div class="token-holder"></div>`;
+    }
+    board.appendChild(div);
+  });
+  const center=document.createElement('div');
+  center.className='center-panel';
+  center.innerHTML=`
+    <div class="room-tag">ห้อง ${roomCode}</div>
+    <h2 id="turnLabel"></h2>
+    <div class="players-row" id="playersRow"></div>
+    <div class="dice-row"><div class="die" id="die1">-</div><div class="die" id="die2">-</div></div>
+    <button id="rollBtn">🎲 ทอยลูกเต๋า</button>
+    <div id="actionSlot"></div>
+    <div class="log" id="logBox"></div>
+    <button id="endGameBtn">ดูอันดับ</button>
+  `;
+  document.getElementById('board').appendChild(center);
+  document.getElementById('rollBtn').addEventListener('click', onRollClick);
+  document.getElementById('endGameBtn').addEventListener('click', showRanking);
+  renderStatic();
+}
+
+function renderStatic(){
+  renderPlayers();
+  renderOwnership();
+  renderTokens();
+  renderLog();
+  const me = state.players.find(p=>p.id===myId);
+  const active = state.players[state.currentTurn];
+  document.getElementById('turnLabel').textContent = active ? `ตาของ ${active.name}${active.id===myId?' (คุณ)':''}` : '';
+  const canRoll = state.status==='playing' && active && active.id===myId && !(state.lastTurnResult && state.lastTurnResult.pendingBuy);
+  document.getElementById('rollBtn').disabled = !canRoll;
+  if(state.lastTurnResult && state.lastTurnResult.pendingBuy){
+    showBuyPanel(state.lastTurnResult.pendingBuy);
+  } else {
+    document.getElementById('actionSlot').innerHTML='';
+  }
+  if(state.status==='ended'){
+    showWinnerOverlay();
+  }
+}
+
+function renderPlayers(){
+  const row=document.getElementById('playersRow');
+  row.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const chip=document.createElement('div');
+    chip.className='player-chip'+(i===state.currentTurn?' turn':'')+(p.bankrupt?' bankrupt':'');
+    chip.id='chip-'+p.id;
+    chip.innerHTML=`<div class="dot" style="background:${p.color}"></div><span>${p.name}</span><span class="cash">${p.cash}฿</span>`;
+    row.appendChild(chip);
+  });
+}
+
+function renderOwnership(){
+  BOARD.forEach((c,idx)=>{
+    const el=document.getElementById('cell-'+idx);
+    el.classList.remove('owned');
+    const ownerId = state.ownership[idx];
+    if(ownerId){
+      const owner = state.players.find(p=>p.id===ownerId);
+      if(owner){ el.classList.add('owned'); el.style.setProperty('--owner-color', owner.color); }
+    }
+  });
+}
+
+function renderTokens(){
+  document.querySelectorAll('.token-holder').forEach(h=>h.innerHTML='');
+  state.players.forEach(p=>{
+    if(p.bankrupt) return;
+    const holder=document.querySelector('#cell-'+p.pos+' .token-holder');
+    if(holder){
+      const t=document.createElement('div');
+      t.className='token'; t.style.background=p.color;
+      holder.appendChild(t);
+    }
+  });
+}
+
+function renderLog(){
+  const box=document.getElementById('logBox');
+  box.innerHTML='';
+  state.log.slice(-30).slice().reverse().forEach(line=>{
+    const d=document.createElement('div'); d.textContent=line; box.appendChild(d);
+  });
+}
+
+/* ---------- animation of a completed turn ---------- */
+function playTurnAnimation(oldState, newState){
+  const result = newState.lastTurnResult;
+  if(!result){ renderStatic(); return; }
+  const actor = newState.players.find(p=>p.id===result.actorId);
+  document.getElementById('rollBtn').disabled = true;
+
+  const isRoll = result.dice && result.dice.length===2;
+  const doTrail = ()=>{
+    if(result.trail && result.trail.length){
+      hopThroughTrail(result.actorId, result.trail, ()=>{
+        applyCashDeltasAnim(result.cashDeltas || {});
+        setTimeout(()=>renderStatic(), 350);
+      });
+    } else {
+      applyCashDeltasAnim(result.cashDeltas || {});
+      setTimeout(()=>renderStatic(), 250);
+    }
+  };
+
+  if(isRoll){
+    animateDice(result.dice, doTrail);
+  } else {
+    doTrail();
+  }
+}
+
+function animateDice(finalDice, cb){
+  const d1=document.getElementById('die1'), d2=document.getElementById('die2');
+  d1.classList.add('rolling'); d2.classList.add('rolling');
+  let ticks=0;
+  const iv=setInterval(()=>{
+    d1.textContent=1+Math.floor(Math.random()*6);
+    d2.textContent=1+Math.floor(Math.random()*6);
+    ticks++;
+    if(ticks>6){
+      clearInterval(iv);
+      d1.classList.remove('rolling'); d2.classList.remove('rolling');
+      d1.textContent=finalDice[0]; d2.textContent=finalDice[1];
+      setTimeout(cb, 200);
+    }
+  }, 90);
+}
+
+function hopThroughTrail(playerId, trail, cb){
+  const color = (state.players.find(p=>p.id===playerId)||{}).color || '#fff';
+  let i=0;
+  function step(){
+    if(i>=trail.length){ cb(); return; }
+    const cellIdx = trail[i];
+    document.querySelectorAll('.token-holder').forEach(h=>{
+      h.querySelectorAll('.token[data-anim="'+playerId+'"]').forEach(t=>t.remove());
+    });
+    const holder = document.querySelector('#cell-'+cellIdx+' .token-holder');
+    const cellEl = document.getElementById('cell-'+cellIdx);
+    if(holder){
+      const t=document.createElement('div');
+      t.className='token hop'; t.style.background=color; t.dataset.anim=playerId;
+      holder.appendChild(t);
+    }
+    if(cellEl){ cellEl.classList.add('flash'); setTimeout(()=>cellEl.classList.remove('flash'), 650); }
+    i++;
+    setTimeout(step, 220);
+  }
+  step();
+}
+
+function applyCashDeltasAnim(deltas){
+  Object.keys(deltas).forEach(pid=>{
+    const delta = deltas[pid];
+    if(!delta) return;
+    const chip = document.getElementById('chip-'+pid);
+    if(!chip) return;
+    const span = document.createElement('span');
+    span.className='float-delta';
+    span.style.color = delta>0 ? '#7ddf9a' : '#ff8f7a';
+    span.textContent = (delta>0?'+':'')+delta+'฿';
+    chip.appendChild(span);
+    setTimeout(()=>span.remove(), 1150);
+  });
+}
+
+/* ---------- game logic (executed by acting client) ---------- */
+function onRollClick(){
+  const idx = state.currentTurn;
+  const p = state.players[idx];
+  if(p.id!==myId) return;
+  const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
+  runTurn(idx, d1+d2, [d1,d2]);
+}
+
+function runTurn(actorIdx, steps, dice){
+  const players = state.players.map(p=>({...p}));
+  const ownership = state.ownership.slice();
+  const log = [];
+  const cashDeltas = {};
+  const trail = [];
+  let pendingBuy = null;
+
+  function addCash(pid, amt){ cashDeltas[pid]=(cashDeltas[pid]||0)+amt; }
+
+  function move(playerIdx, n, allowEvent){
+    const p = players[playerIdx];
+    const oldPos = p.pos;
+    const total = oldPos + n;
+    const newPos = total % BOARD.length;
+    const passed = total >= BOARD.length;
+    for(let s=1;s<=n;s++){ trail.push((oldPos+s) % BOARD.length); }
+    p.pos = newPos;
+    if(passed){ p.cash += 200; addCash(p.id,200); log.push(`${p.name} เดินผ่านจุดเริ่มต้น รับ 200 บาท`); }
+    land(playerIdx, allowEvent);
+  }
+
+  function land(playerIdx, allowEvent){
+    const p = players[playerIdx];
+    const cell = BOARD[p.pos];
+    if(cell.type==='stall'){
+      const owner = ownership[p.pos];
+      if(owner===null){
+        if(p.cash >= cell.price){
+          pendingBuy = {playerId:p.id, cellIdx:p.pos};
+          log.push(`${p.name} มาถึง ${cell.name} — รอการตัดสินใจซื้อ`);
+        } else {
+          log.push(`${p.name} มาถึง ${cell.name} แต่เงินไม่พอซื้อ`);
+        }
+      } else if(owner!==p.id){
+        const ownerPlayer = players.find(pl=>pl.id===owner);
+        const fullGroup = BOARD.every((c,i)=> c.type!=='stall' || c.group!==cell.group || ownership[i]===owner);
+        const rent = Math.round(cell.price*(fullGroup?0.5:0.25));
+        p.cash -= rent; ownerPlayer.cash += rent;
+        addCash(p.id,-rent); addCash(ownerPlayer.id, rent);
+        log.push(`${p.name} จ่ายค่าเช่า ${rent} บาท ให้ ${ownerPlayer.name} (${cell.name})`);
+        checkBankrupt(playerIdx);
+      } else {
+        log.push(`${p.name} เดินมาที่แผงของตัวเอง (${cell.name})`);
+      }
+    } else if(cell.kind==='event' && allowEvent){
+      const ev = EVENTS[Math.floor(Math.random()*EVENTS.length)];
+      log.push(`🎴 ${ev.emoji} ${ev.text}`);
+      p.cash += ev.amount; addCash(p.id, ev.amount);
+      checkBankrupt(playerIdx);
+      if(ev.move){ move(playerIdx, ev.move, false); return; }
+    } else if(cell.kind==='tax'){
+      p.cash -= 100; addCash(p.id,-100);
+      log.push(`${p.name} ถูกตรวจตลาด เสียเงิน 100 บาท`);
+      checkBankrupt(playerIdx);
+    } else if(cell.kind==='rest'){
+      log.push(`${p.name} พักผ่อนที่ม้านั่ง ปลอดภัยดี`);
+    }
+  }
+
+  function checkBankrupt(playerIdx){
+    const p = players[playerIdx];
+    if(p.cash<0 && !p.bankrupt){
+      p.bankrupt=true;
+      for(let i=0;i<ownership.length;i++) if(ownership[i]===p.id) ownership[i]=null;
+      log.push(`💥 ${p.name} หมดตัว! ออกจากเกม แผงกลับเป็นของกลาง`);
+    }
+  }
+
+  move(actorIdx, steps, true);
+  finalizeAndPush(players, ownership, log, cashDeltas, trail, dice, pendingBuy);
+}
+
+function finalizeAndPush(players, ownership, log, cashDeltas, trail, dice, pendingBuy){
+  let nextTurn = state.currentTurn;
+  let status = 'playing';
+  let winnerId = null;
+  if(!pendingBuy){
+    const advance = nextTurnIndex(players, nextTurn);
+    nextTurn = advance;
+  }
+  const alive = players.filter(p=>!p.bankrupt);
+  if(alive.length<=1){ status='ended'; winnerId = alive[0] ? alive[0].id : null; }
+
+  db.collection(ROOMS).doc(roomCode).update({
+    players, ownership,
+    currentTurn: nextTurn,
+    turnSeq: state.turnSeq+1,
+    lastTurnResult:{ actorId: players[state.currentTurn] ? players[state.currentTurn].id : null,
+      dice, trail, cashDeltas, pendingBuy },
+    status, winnerId,
+    log: state.log.concat(log)
+  });
+}
+
+function nextTurnIndex(players, cur){
+  let i=cur;
+  do{ i=(i+1)%players.length; } while(players[i].bankrupt && players.some(p=>!p.bankrupt));
+  return i;
+}
+
+function showBuyPanel(pendingBuy){
+  const slot=document.getElementById('actionSlot');
+  const p = state.players.find(x=>x.id===pendingBuy.playerId);
+  const cell = BOARD[pendingBuy.cellIdx];
+  if(pendingBuy.playerId===myId){
+    slot.innerHTML=`<div class="action-panel">
+      คุณต้องการซื้อ <b>${cell.name}</b> ราคา ${cell.price} บาท หรือไม่?
+      <div class="btns"><button class="btn-yes" id="buyYes">ซื้อ</button><button class="btn-no" id="buyNo">ไม่ซื้อ</button></div>
+    </div>`;
+    document.getElementById('buyYes').addEventListener('click', ()=>resolveBuy(true));
+    document.getElementById('buyNo').addEventListener('click', ()=>resolveBuy(false));
+  } else {
+    slot.innerHTML=`<div class="action-panel">รอ ${p?p.name:''} ตัดสินใจซื้อ ${cell.name}...</div>`;
+  }
+}
+
+function resolveBuy(yes){
+  const players = state.players.map(p=>({...p}));
+  const ownership = state.ownership.slice();
+  const pendingBuy = state.lastTurnResult.pendingBuy;
+  const p = players.find(x=>x.id===pendingBuy.playerId);
+  const cell = BOARD[pendingBuy.cellIdx];
+  const log=[]; const cashDeltas={};
+  if(yes){
+    p.cash -= cell.price;
+    ownership[pendingBuy.cellIdx] = p.id;
+    cashDeltas[p.id]=-cell.price;
+    log.push(`${p.name} ซื้อ ${cell.name} ในราคา ${cell.price} บาท`);
+  } else {
+    log.push(`${p.name} เลือกไม่ซื้อ ${cell.name}`);
+  }
+  const actorIdx = players.findIndex(x=>x.id===p.id);
+  const nextTurn = nextTurnIndex(players, actorIdx);
+  const alive = players.filter(x=>!x.bankrupt);
+  let status='playing', winnerId=null;
+  if(alive.length<=1){ status='ended'; winnerId=alive[0]?alive[0].id:null; }
+
+  db.collection(ROOMS).doc(roomCode).update({
+    players, ownership, currentTurn: nextTurn, turnSeq: state.turnSeq+1,
+    lastTurnResult:{ actorId:p.id, dice:null, trail:[], cashDeltas, pendingBuy:null },
+    status, winnerId, log: state.log.concat(log)
+  });
+}
+
+/* ---------- ranking / win ---------- */
+function netWorth(p){
+  const val = BOARD.reduce((s,c,i)=> s + ((c.type==='stall' && state.ownership[i]===p.id)? c.price:0), 0);
+  return p.cash+val;
+}
+function showRanking(){
+  const ranked = state.players.slice().sort((a,b)=>netWorth(b)-netWorth(a));
+  document.getElementById('overTitle').textContent='อันดับปัจจุบัน';
+  document.getElementById('overBody').innerHTML = ranked.map((p,i)=>
+    `<div class="rank-row"><span>${i+1}. ${p.name}${p.bankrupt?' (หมดตัว)':''}</span><span>${netWorth(p)}฿</span></div>`
+  ).join('');
+  document.getElementById('overlay').style.display='flex';
+}
+let winnerShown=false;
+function showWinnerOverlay(){
+  if(winnerShown) return; winnerShown=true;
+  const winner = state.players.find(p=>p.id===state.winnerId);
+  document.getElementById('overTitle').textContent='🏆 จบเกม!';
+  document.getElementById('overBody').innerHTML = winner
+    ? `<p><b>${winner.name}</b> คือเจ้าพ่อตลาดนัดตัวจริง!</p><p>ทรัพย์สินสุทธิ: ${netWorth(winner)} บาท</p>`
+    : `<p>เกมจบลงโดยไม่มีผู้ชนะ</p>`;
+  document.getElementById('overlay').style.display='flex';
+  document.getElementById('rollBtn').disabled=true;
+  spawnConfetti();
+}
+function spawnConfetti(){
+  const colors=['#e2543b','#f4a340','#4c8c6b','#d4af37','#6d9dc5'];
+  for(let i=0;i<50;i++){
+    const c=document.createElement('div');
+    c.className='confetti';
+    c.style.left=Math.random()*100+'vw';
+    c.style.background=colors[Math.floor(Math.random()*colors.length)];
+    c.style.animationDuration=(2+Math.random()*1.5)+'s';
+    c.style.animationDelay=(Math.random()*0.6)+'s';
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(), 4000);
+  }
+}
+</script>
+</body>
+</html>
